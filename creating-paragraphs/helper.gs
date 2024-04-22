@@ -44,3 +44,49 @@ function getSet(setName) {
 function filterFirstColumn(array, filterValue) {
     return array.filter(row => row[1] === filterValue).map(row => row[0]);
 }
+
+function isSubset(a, b) {
+    return a.every(item => b.includes(item));
+}
+
+function isMultiset(a, b) {
+    // Check if at least one member is repeated
+    const repeatedValues = getRepeatedValues(b);
+    
+    return a.some(item => repeatedValues.includes(item));
+}
+
+
+function getRepeatedValues(array) {
+    const seen = new Set();
+    const repeated = new Set();
+    
+    // Filter out repeated values
+    array.forEach(item => {
+        if (seen.has(item)) {
+            repeated.add(item);
+        } else {
+            seen.add(item);
+        }
+    });
+    
+    // Convert the Set to an array and return
+    return Array.from(repeated);
+}
+
+function sortObjectByKey(obj) {
+
+    // Get the keys of the object
+    const keys = Object.keys(obj);
+    
+    // Sort the keys alphabetically
+    keys.sort();
+    
+    // Create a new object with sorted keys
+    const sortedObject = {};
+    keys.forEach(key => {
+        sortedObject[key] = obj[key];
+    });
+    
+    return sortedObject;
+}

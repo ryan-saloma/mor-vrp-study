@@ -1,45 +1,59 @@
-// TO-DO: make something that highlights low-frequency words
+// every function update function should be named getX
+// addStat should be renamed updateStat
+// paragraphs should be fetched outside getX and passed in one at a time
 
+const data = getELPData();
 
 function updateAll() {
-  let data = getELPData();
-  updateSet('MOR', data);
-  updateSet('VRP', data);
+  ['MOR', 'VRP'].forEach(setName => updateSet(setName, data, null));
 }
 
-function updateSet(setName, data) {
+function updateSelected() {
+  let range = SpreadsheetApp.getActiveRange();
+  let setName = SpreadsheetApp.getActiveSheet().getName();
+  updateSet(setName, data, range);
+}
+
+function updateSet(setName, data, range) {
 
   if(!data) {
     data = getELPData();
   }
 
-  let avgs = calculateFreqAvg(setName, data);
-  addStats(avgs, setName, 'LgSUBTL_Avg');
-  let nsyll = countSyllables(setName, data);
-  addStats(nsyll, setName, 'NSyll');
-  let nphon = countPhonemes(setName, data);
-  addStats(nphon, setName, 'NPhon');
-  let nchar= countCharacters(setName, data);
-  addStats(nchar, setName, 'Length');
-  let nsentences = countSentences(setName, data);
-  addStats(nsentences, setName, 'SentenceCount');
-  let nwords = countWords(setName, data);
-  addStats(nwords, setName, 'WordCount');
-  let pos = countPOS(setName);
-  addStats(pos, setName, 'POSFromNLP');
+  let functionArray = [
+    {fun: countSentences, colName: 'SentenceCount'}, 
+    {fun: countWords, colName: 'WordCount'}, 
+    {fun: calculateFreqAvg, colName: 'LgSUBTL_Avg'}, 
+    {fun: countSyllables, colName: 'NSyll'}, 
+    {fun: countPhonemes, colName: 'NPhon'}, 
+    {fun: countCharacters, colName: 'Length'}, 
+    {fun: countPOS, colName: 'POSFromNLP'}
+  ];
+  
+  for(let {fun, colName} of functionArray) {
+    let result = fun(setName, data, range);
+    addStats(result, setName, colName, range);
+  }
+
 }
 
-function addStats(stats, sheetName, colName) {
+function addStats(stats, sheetName, colName, range) {
+  let row;
+  if(!range) {
+    row = 2; // this should probably change
+  } else {
+    row = range.getLastRow();
+  }
+
   let col = getColumn(sheetName, colName);
   let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  sheet.getRange(2, col + 1, stats.length, 1).setValues(stats.map(stat => [stat]));
+  sheet.getRange(row, col + 1, stats.length, 1).setValues(stats.map(stat => [stat]));
 } 
 
 function getELPData() {
   let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ELP');
   let array = sheet.getDataRange().getValues();
-  let data = constructMap(array);
-  return data;
+  return constructMap(array);
 }
 
 function summarize(array, summaryFunction) {
@@ -49,7 +63,7 @@ function summarize(array, summaryFunction) {
     return summaryFunction(array);
 }
 
-function updateStat(sheetName, data, colName, summaryFunction) {
+function updateStat(sheetName, data, colName, range, summaryFunction) {
   
   let sheet;
   if(!sheetName) {
@@ -58,7 +72,11 @@ function updateStat(sheetName, data, colName, summaryFunction) {
     sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   }
 
-  let paragraphs = sheet.getRange(2, 1, 4, 1).getValues().flat(1);
+  if(!range) {
+    range = sheet.getRange(2, 1, 4, 1);
+  }
+
+  let paragraphs = range.getValues().flat(1);
   let col = getColumn('ELP', colName);
   let stats = [];
   let i = 0;
@@ -90,40 +108,44 @@ function updateStat(sheetName, data, colName, summaryFunction) {
   return stats;
 }
 
-function calculateFreqAvg(sheetName, data) {
-  return updateStat(sheetName, data, 'LgSUBTLWF', (frequencies) => {
+function calculateFreqAvg(sheetName, data, range) {
+  return updateStat(sheetName, data, 'LgSUBTLWF', range, (frequencies) => {
         const total = frequencies.reduce((acc, val) => acc + val, 0);
         return total / frequencies.length;
     });
 }
 
 
-function countSyllables(sheetName, data) {
-  return updateStat(sheetName, data, 'NSyll', (values) => {
+function countSyllables(sheetName, data, range) {
+  return updateStat(sheetName, data, 'NSyll', range, (values) => {
         return values.reduce((acc, val) => acc + val, 0);
   });
 }
 
-function countPhonemes(sheetName, data) {
-  return updateStat(sheetName, data, 'NPhon', (values) => {
+function countPhonemes(sheetName, data, range) {
+  return updateStat(sheetName, data, 'NPhon', range, (values) => {
       return values.reduce((acc, val) => acc + val, 0);
   });
 }
 
-function countCharacters(sheetName, data) {
-  return updateStat(sheetName, data, 'Length', (values) => {
+function countCharacters(sheetName, data, range) {
+  return updateStat(sheetName, data, 'Length', range, (values) => {
     return values.reduce((acc, val) => acc + val, 0);
   });
 }
 
-function countSentences(sheetName, data) {
+function countSentences(sheetName, data, range) {
   let sheet = getSheet(sheetName);
 
   if(!data) {
     data = getELPData();
   }
 
-  let paragraphs = sheet.getRange(2, 1, 4, 1).getValues().flat(1);
+  if(!range) {
+    range = sheet.getRange(2, 1, 4, 1);
+  }
+
+  let paragraphs = range.getValues().flat(1);
   let counts = [];
   let i = 0;
 
@@ -136,14 +158,18 @@ function countSentences(sheetName, data) {
   return counts;
 }
 
-function countWords(sheetName, data) {
+function countWords(sheetName, data, range) {
   let sheet = getSheet(sheetName);
 
   if(!data) {
     data = getELPData();
   }
 
-  let paragraphs = sheet.getRange(2, 1, 4, 1).getValues().flat(1);
+  if(!range) {
+    range = sheet.getRange(2, 1, 4, 1);
+  }
+
+  let paragraphs = range.getValues().flat(1);
   let counts = [];
   let i = 0;
 
@@ -155,10 +181,15 @@ function countWords(sheetName, data) {
   return counts;
 }
 
-function countPOS(sheetName) {
+// this needs fixing, data doesn't do anything
+function countPOS(sheetName, data, range) {
   let sheet = getSheet(sheetName);
 
-  let paragraphs = sheet.getRange(2, 1, 4, 1).getValues().flat(1);
+  if(!range) {
+    range = sheet.getRange(2, 1, 4, 1);
+  }
+
+  let paragraphs = range.getValues().flat(1);
   let pos = [];
   let i = 0;
 
@@ -172,7 +203,7 @@ function countPOS(sheetName) {
     for(let {text, tag}  of array) {
       map[tag] = map[tag] + 1 || 1;
     }
-    return JSON.stringify(map);
+    return JSON.stringify(sortObjectByKey(map));
   })
 
   return tmp;
@@ -193,8 +224,8 @@ sheetName = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName()) {
   let forbiddenWords = getSet(forbiddenSet);
   let paragraph = range.getValue();
   let words = removePunctuation(paragraph.toLowerCase()).split(' ');
-  formatPhrasesInText(range, words, 'black', false);
-  formatPhrasesInText(range, forbiddenWords, 'red', true);
+  // formatPhrasesInText(range, words, 'black', false);
+  formatPhrasesInText(range, forbiddenWords, 'red');
 
   // check if all allowed words are present, no repeats
   let col = getColumn(sheetName, 'NoForbiddenWords') + 1;
@@ -220,8 +251,8 @@ sheetName = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName()) {
   let targetWords = getSet(sheetName);
   let paragraph = range.getValue();
   let words = removePunctuation(paragraph.toLowerCase()).split(' ');
-  formatPhrasesInText(range, words, 'black', false);
-  formatPhrasesInText(range, targetWords, 'green', true);
+  // resetFormat(range);
+  formatPhrasesInText(range, targetWords, 'green');
 
   // check if all allowed words are present, no repeats
   let col = getColumn(sheetName, 'AllTargetWords') + 1;
@@ -246,34 +277,6 @@ sheetName = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName()) {
 
 }
 
-function isSubset(a, b) {
-    return a.every(item => b.includes(item));
-}
-
-function isMultiset(a, b) {
-    // Check if at least one member is repeated
-    const repeatedValues = getRepeatedValues(b);
-    
-    return a.some(item => repeatedValues.includes(item));
-}
-
-
-function getRepeatedValues(array) {
-    const seen = new Set();
-    const repeated = new Set();
-    
-    // Filter out repeated values
-    array.forEach(item => {
-        if (seen.has(item)) {
-            repeated.add(item);
-        } else {
-            seen.add(item);
-        }
-    });
-    
-    // Convert the Set to an array and return
-    return Array.from(repeated);
-}
 
 
 

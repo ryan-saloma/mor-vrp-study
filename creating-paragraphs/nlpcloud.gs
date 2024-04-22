@@ -1,3 +1,4 @@
+// this should probably be an async function
 function getPOS(paragraph) {
 
   let token = `Token ${PropertiesService.getScriptProperties().getProperty('API_KEY')}`;
@@ -14,7 +15,7 @@ function getPOS(paragraph) {
   return extractPOS(response.getContentText());
 }
 
-// returns [{text: word, tag: pos}, {text: word2, tag: pos}]
+// string -> [{text: word, tag: pos}, {text: word2, tag: pos}]
 function extractPOS(string) {
   let obj = JSON.parse(string);
   return obj.sentence_dependencies[0].dependencies.words;
