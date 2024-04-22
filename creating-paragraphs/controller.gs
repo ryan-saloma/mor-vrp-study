@@ -173,9 +173,6 @@ function calculateWordComplexity({ipa, word, nsyllables}) {
   }
 
   let complexity = 0;
-  // let ipa = wordObject.ipa;
-  // let word = wordObject.word;
-  // let nsyllables = wordObject.nsyllables;
 
   complexity += countClusters(word);
 
