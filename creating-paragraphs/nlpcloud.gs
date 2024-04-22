@@ -18,7 +18,9 @@ function getPOS(paragraph) {
 // string -> [{text: word, tag: pos}, {text: word2, tag: pos}]
 function extractPOS(string) {
   let obj = JSON.parse(string);
-  return obj.sentence_dependencies[0].dependencies.words;
+  let dep = obj.sentence_dependencies;
+  let nestedArray = dep.map(item => item.dependencies.words);
+  return nestedArray.flat(1);
 }
 
 // probably want something that check that word is being as intended (e.g. program.tag == 'NN')
