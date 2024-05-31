@@ -491,3 +491,356 @@ writeLines(output, paste0("boschloo_control_vs_treatment_paragraphs_",Sys.Date()
 
 
 ```
+
+## Compare MOR and VRP at Baseline
+
+```{r}
+
+contingency_table_MOR_vs_VRP <- matrix(
+  c(MORAccurracyPre$Correct, VRPAccurracyPre$Correct, 
+    MORAccurracyPre$Incorrect, VRPAccurracyPre$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("MOR", "VRP"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+MORVsVRPFisherTest <-fisher.test(contingency_table_MOR_vs_VRP)
+
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  MORvsVRP = MORVsVRPFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_baseline_MOR_vs_VRP_",Sys.Date(),".txt"))
+
+```
+
+
+# Compare Change to MOR and VRP, All Words
+
+
+```{r}
+
+tmpPostMOR <- df_post %>% 
+  filter(Set == 'MOR', is.na(AddedWord)) 
+
+tmpPostMOR$WordNum <- 1:nrow(tmpPost)
+
+tmpPreMOR <- df_pre %>% 
+  filter(Set == 'MOR', is.na(AddedWord)) 
+
+tmpPreMOR$WordNum <- 1:nrow(tmpPreMOR)
+
+changesMOR <- tmpPreMOR %>%
+  inner_join(tmpPostMOR, by = "WordNum", 
+            suffix = c("PRE","POST")) %>%
+  mutate(changed = ifelse(AccuracyPRE == 0, ifelse(AccuracyPOST == 1, 1, 0), 0))
+
+
+tmpPostVRP <- df_post %>% 
+  filter(Set == 'VRP', is.na(AddedWord)) 
+
+tmpPostVRP$WordNum <- 1:nrow(tmpPostVRP)
+
+tmpPreVRP <- df_pre %>% 
+  filter(Set == 'VRP', is.na(AddedWord)) 
+
+tmpPreVRP$WordNum <- 1:nrow(tmpPreVRP)
+
+changesVRP <- tmpPreVRP %>%
+  inner_join(tmpPostVRP, by = "WordNum", 
+            suffix = c("PRE","POST")) %>%
+  mutate(changed = ifelse(AccuracyPRE == 0, ifelse(AccuracyPOST == 1, 1, 0), 0))
+
+
+# Count changed words
+countChangedMOR <- changesMOR %>%
+    mutate(Changed = ifelse(changed == 0, "Unchanged", "Changed")) %>%
+    group_by(SetPRE, Changed) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+countChangedVRP <- changesVRP %>%
+    mutate(Changed = ifelse(changed == 0, "Unchanged", "Changed")) %>%
+    group_by(SetPRE, Changed) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+wideCountsChangedMOR <- countChangedMOR %>%
+  pivot_wider(names_from = Changed, values_from = count) %>%
+  select(-SetPRE)
+
+wideCountsChangedVRP <- countChangedVRP %>%
+  pivot_wider(names_from = Changed, values_from = count) %>%
+  select(-SetPRE)
+
+# Construct contigency table
+contingency_table_changes_MOR_vs_VRP <- matrix(
+  c(wideCountsChangedMOR$Changed, wideCountsChangedVRP$Changed, 
+    wideCountsChangedMOR$Unchanged, wideCountsChangedVRP$Unchanged), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("MOR", "VRP"), 
+                  Accuracy = c("Changed", "Unchanged")))
+
+
+MORvsVRPChangesFisherTest <- fisher.test(contingency_table_changes_MOR_vs_VRP)
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  MORvsVRP = MORvsVRPChangesFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_changes_all_words_MOR_vs_VRP_",Sys.Date(),".txt"))
+
+# Output Contingency Tables for Target Words
+# Combine tables into a list
+tables <- list(
+  MORvsVRP = contingency_table_changes_MOR_vs_VRP
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(tables)) {
+    cat("\n", name, "\n")
+    print(tables[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("contingency_tables_changes_all_words_",Sys.Date(),".txt"))
+
+
+```
+
+# Compare Change to Control vs. MOR and VRP, All Words
+
+```{r}
+
+tmpPostControl<- df_post %>% 
+  filter(Set == 'CONTROL', is.na(AddedWord)) 
+
+tmpPostControl$WordNum <- 1:nrow(tmpPostControl)
+
+tmpPreControl <- df_pre %>% 
+  filter(Set == 'CONTROL', is.na(AddedWord)) 
+
+tmpPreControl$WordNum <- 1:nrow(tmpPreControl)
+
+changesControl <- tmpPreControl %>%
+  inner_join(tmpPostControl, by = "WordNum", 
+            suffix = c("PRE","POST")) %>%
+  mutate(changed = ifelse(AccuracyPRE == 0, ifelse(AccuracyPOST == 1, 1, 0), 0))
+
+
+# Count changed words
+countChangedControl <- changesControl %>%
+    mutate(Changed = ifelse(changed == 0, "Unchanged", "Changed")) %>%
+    group_by(SetPRE, Changed) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+wideCountsChangedControl <- countChangedControl %>%
+  pivot_wider(names_from = Changed, values_from = count) %>%
+  select(-SetPRE)
+
+# Construct contigency table
+contingency_table_changes_Control_vs_MOR <- matrix(
+  c(wideCountsChangedMOR$Changed, wideCountsChangedControl$Changed, 
+    wideCountsChangedMOR$Unchanged, wideCountsChangedControl$Unchanged), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("MOR", "Control"), 
+                  Accuracy = c("Changed", "Unchanged")))
+
+
+ControlvsMORChangesFisherTest <- fisher.test(contingency_table_changes_Control_vs_MOR)
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  ControlVsMOR = ControlvsMORChangesFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_changes_all_words_Control_vs_MOR_",Sys.Date(),".txt"))
+
+
+# Construct contigency table
+contingency_table_changes_Control_vs_VRP <- matrix(
+  c(wideCountsChangedVRP$Changed, wideCountsChangedControl$Changed, 
+    wideCountsChangedVRP$Unchanged, wideCountsChangedControl$Unchanged), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("VRP", "Control"), 
+                  Accuracy = c("Changed", "Unchanged")))
+
+
+ControlvsVRPChangesFisherTest <- fisher.test(contingency_table_changes_Control_vs_VRP)
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  ControlVsVRP = ControlvsVRPChangesFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_changes_all_words_Control_vs_VRP_",Sys.Date(),".txt"))
+
+# Output Contingency Tables for Target Words
+# Combine tables into a list
+tables <- list(
+  ControlVsMOR = contingency_table_changes_Control_vs_MOR, 
+  ControlVsVRP = contingency_table_changes_Control_vs_VRP
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(tables)) {
+    cat("\n", name, "\n")
+    print(tables[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("contingency_tables_changes_all_words_Control_vs_Treatment_",Sys.Date(),".txt"))
+
+```
+
+# Compare Change to MOR and VRP, Target Words
+
+
+```{r}
+
+tmpPostMOR <- df_post %>% 
+  filter(Set == 'MOR', is.na(AddedWord), TargetWord == TRUE) 
+
+tmpPostMOR$WordNum <- 1:nrow(tmpPostMOR)
+
+tmpPreMOR <- df_pre %>% 
+  filter(Set == 'MOR', is.na(AddedWord), TargetWord == TRUE) 
+
+tmpPreMOR$WordNum <- 1:nrow(tmpPreMOR)
+
+changesMOR <- tmpPreMOR %>%
+  inner_join(tmpPostMOR, by = "WordNum", 
+            suffix = c("PRE","POST")) %>%
+  mutate(changed = ifelse(AccuracyPRE == 0, ifelse(AccuracyPOST == 1, 1, 0), 0))
+
+
+tmpPostVRP <- df_post %>% 
+  filter(Set == 'VRP', is.na(AddedWord), TargetWord == TRUE) 
+
+tmpPostVRP$WordNum <- 1:nrow(tmpPostVRP)
+
+tmpPreVRP <- df_pre %>% 
+  filter(Set == 'VRP', is.na(AddedWord), TargetWord == TRUE) 
+
+tmpPreVRP$WordNum <- 1:nrow(tmpPreVRP)
+
+changesVRP <- tmpPreVRP %>%
+  inner_join(tmpPostVRP, by = "WordNum", 
+            suffix = c("PRE","POST")) %>%
+  mutate(changed = ifelse(AccuracyPRE == 0, ifelse(AccuracyPOST == 1, 1, 0), 0))
+
+
+# Count changed words
+countChangedMOR <- changesMOR %>%
+    mutate(Changed = ifelse(changed == 0, "Unchanged", "Changed")) %>%
+    group_by(SetPRE, Changed) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+countChangedVRP <- changesVRP %>%
+    mutate(Changed = ifelse(changed == 0, "Unchanged", "Changed")) %>%
+    group_by(SetPRE, Changed) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+wideCountsChangedMOR <- countChangedMOR %>%
+  pivot_wider(names_from = Changed, values_from = count) %>%
+  select(-SetPRE)
+
+wideCountsChangedVRP <- countChangedVRP %>%
+  pivot_wider(names_from = Changed, values_from = count) %>%
+  select(-SetPRE)
+
+# Construct contigency table
+contingency_table_changes_MOR_vs_VRP <- matrix(
+  c(wideCountsChangedMOR$Changed, wideCountsChangedVRP$Changed, 
+    wideCountsChangedMOR$Unchanged, wideCountsChangedVRP$Unchanged), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("MOR", "VRP"), 
+                  Accuracy = c("Changed", "Unchanged")))
+
+
+MORvsVRPChangesFisherTest <- fisher.test(contingency_table_changes_MOR_vs_VRP)
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  MORvsVRP = MORvsVRPChangesFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_changes_target_words_MOR_vs_VRP_",Sys.Date(),".txt"))
+
+# Output Contingency Tables for Target Words
+# Combine tables into a list
+tables <- list(
+  MORvsVRP = contingency_table_changes_MOR_vs_VRP
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(tables)) {
+    cat("\n", name, "\n")
+    print(tables[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("contingency_tables_changes_target_words_",Sys.Date(),".txt"))
+
+```
