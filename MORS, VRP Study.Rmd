@@ -1,0 +1,493 @@
+---
+title: "MORS, VRP Pilot"
+output: pdf_document
+date: "2024-05-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Libraries
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(fBasics)
+library(openxlsx)
+library(ggplot2)
+library(tidystats)
+library(exact2x2)
+```
+
+
+## Load Data
+
+```{r}
+df_pre <- read.xlsx("~/Downloads/UNR_Paragraph_Timing_Data_Baseline (5.15.24).xlsx") %>%
+  mutate(Set = ifelse(grepl('MOR', ParagraphID), 'MOR', ifelse(grepl('VRP', ParagraphID), 'VRP', 'CONTROL')), 
+         Timepoint = 'PRE')
+df_post <- read.xlsx("~/Downloads/UNR_Paragraph_Timing_Data_Post (5.23.24).xlsx") %>%
+  mutate(Set = ifelse(grepl('MOR', ParagraphID), 'MOR', ifelse(grepl('VRP', ParagraphID), 'VRP', 'CONTROL')), 
+         Timepoint = 'POST')
+```
+
+## Paired Samples Wilcoxon Test for Durations
+
+```{r}
+
+preControl <- df_pre %>% 
+  filter(Set == 'CONTROL', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+postControl <- df_post %>% 
+  filter(Set == 'CONTROL', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+preMOR <- df_pre %>% 
+  filter(Set == 'MOR', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+postMOR <- df_post %>% 
+  filter(Set == 'MOR', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+preVRP <- df_pre %>% 
+  filter(Set == 'VRP', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+postVRP <- df_post %>% 
+  filter(Set == 'VRP', !is.na(SecondsElapsed), SecondsElapsed != '#N/A') %>%
+  mutate(SecondsElapsed = as.numeric(SecondsElapsed))
+
+# Control Condition
+
+wilcoxControlPreVsPost <- wilcox.test(preControl$SecondsElapsed, postControl$SecondsElapsed)
+
+# MOR Condition
+wilcoxMORPreVsPost <- wilcox.test(preMOR$SecondsElapsed, postMOR$SecondsElapsed)
+
+# VRP Condition
+wilcoxVRPPreVsPost <- wilcox.test(preVRP$SecondsElapsed, postVRP$SecondsElapsed)
+
+```
+
+
+## Fisher Exact Tests on All Word Data, Pre vs. Post
+
+```{r}
+
+countPre <-
+  df_pre %>%
+    filter(!is.na(Accuracy), Accuracy != "#N/A") %>%
+    mutate(Accuracy = ifelse(Accuracy == 0, "Incorrect", "Correct")) %>%
+    group_by(Set, Accuracy) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+countPost <-
+  df_post %>%
+    filter(!is.na(Accuracy), Accuracy != "#N/A") %>%
+    mutate(Accuracy = ifelse(Accuracy == 0, "Incorrect", "Correct")) %>%
+    group_by(Set, Accuracy) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+controlAccurracyPre <- countPre %>% filter(Set == 'CONTROL') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'PRE') %>%
+  select(Timepoint, Correct, Incorrect)
+
+controlAccurracyPost <- countPost %>% filter(Set == 'CONTROL') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'POST') %>%
+  select(Timepoint, Correct, Incorrect)
+
+contingency_table_control <- matrix(
+  c(controlAccurracyPre$Correct, controlAccurracyPost$Correct, 
+    controlAccurracyPre$Incorrect, controlAccurracyPost$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("PRE", "POST"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+
+ControlFisherTest <- fisher.test(contingency_table_control)
+
+MORAccurracyPre <- countPre %>% filter(Set == 'MOR') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'PRE') %>%
+  select(Timepoint, Correct, Incorrect)
+
+MORAccurracyPost <- countPost %>% filter(Set == 'MOR') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'POST') %>%
+  select(Timepoint, Correct, Incorrect)
+
+contingency_table_MOR <- matrix(
+  c(MORAccurracyPre$Correct, MORAccurracyPost$Correct, 
+    MORAccurracyPre$Incorrect, MORAccurracyPost$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("PRE", "POST"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+
+MORFisherTest <- fisher.test(contingency_table_MOR)
+
+
+VRPAccurracyPre <- countPre %>% filter(Set == 'VRP') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'PRE') %>%
+  select(Timepoint, Correct, Incorrect)
+
+VRPAccurracyPost <- countPost %>% filter(Set == 'VRP') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'POST') %>%
+  select(Timepoint, Correct, Incorrect)
+
+contingency_table_VRP <- matrix(
+  c(VRPAccurracyPre$Correct, VRPAccurracyPost$Correct, 
+    VRPAccurracyPre$Incorrect, VRPAccurracyPost$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("PRE", "POST"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+
+VRPFisherTest <-fisher.test(contingency_table_VRP)
+  
+
+```
+
+## Fisher Exact Tests on Target Word Data, Pre vs. Post
+
+```{r}
+countPreTargetWords <-
+  df_pre %>%
+    filter(Accuracy != "#N/A", !is.na(Accuracy), TargetWord == TRUE) %>%
+    mutate(Accuracy = ifelse(Accuracy == 0, "Incorrect", "Correct")) %>%
+    group_by(Set, Accuracy) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+countPostTargetWords <-
+  df_post %>%
+    filter(Accuracy != "#N/A", !is.na(Accuracy), TargetWord == TRUE) %>%
+    mutate(Accuracy = ifelse(Accuracy == 0, "Incorrect", "Correct")) %>%
+    group_by(Set, Accuracy) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+MORAccurracyPreTargetWords <- countPreTargetWords %>% filter(Set == 'MOR') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'PRE') %>%
+  select(Timepoint, Correct, Incorrect)
+
+MORAccurracyPostTargetWords <- countPostTargetWords %>% filter(Set == 'MOR') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'POST') %>%
+  select(Timepoint, Correct, Incorrect)
+
+contingency_table_MOR_TargetWords <- matrix(
+  c(MORAccurracyPreTargetWords$Correct, MORAccurracyPostTargetWords$Correct, 
+    MORAccurracyPreTargetWords$Incorrect, MORAccurracyPostTargetWords$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("PRE", "POST"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+
+MORTargetWordsFisherTest <-fisher.test(contingency_table_MOR_TargetWords)
+
+
+VRPAccurracyPreTargetWords <- countPreTargetWords %>% filter(Set == 'VRP') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'PRE') %>%
+  select(Timepoint, Correct, Incorrect)
+
+VRPAccurracyPostTargetWords <- countPostTargetWords %>% filter(Set == 'VRP') %>% 
+  pivot_wider(names_from = Accuracy, values_from = count) %>%
+  select(-Set) %>%
+  mutate(Timepoint = 'POST') %>%
+  select(Timepoint, Correct, Incorrect)
+
+contingency_table_VRP_TargetWords <- matrix(
+  c(VRPAccurracyPreTargetWords$Correct, VRPAccurracyPostTargetWords$Correct, 
+    VRPAccurracyPreTargetWords$Incorrect, VRPAccurracyPostTargetWords$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("PRE", "POST"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+
+VRPTargetWordsFisherTest <- fisher.test(contingency_table_VRP_TargetWords)
+```
+
+# Plot Accuracy Pre vs. Post
+
+```{r}
+
+summary <- read.xlsx('~/Downloads/UNR - Pre vs. Post.xlsx') %>%
+  mutate(Set = ifelse(grepl('MOR', ParagraphID), 'MOR', ifelse(grepl('VRP', ParagraphID), 'VRP', 'CONTROL')))
+
+p_values <- data.frame(
+  Set = c("CONTROL", "MOR", "VRP"),
+  p_value = c(ControlFisherTest$p.value, MORFisherTest$p.value, VRPFisherTest$p.value)
+)
+
+proportion_data <- summary %>%
+  group_by(Set, Timepoint) %>%
+  summarise(Proportion = mean(Accuracy), 
+            SE = sd(Accuracy) / sqrt(n())) %>%
+  ungroup() 
+
+# Merge p-values with proportion data
+proportion_data <- merge(proportion_data, p_values, by = "Set")
+
+proportion_data$Timepoint <- factor(proportion_data$Timepoint, levels = c("PRE", "POST"))
+
+# Plot Accuracy by Timepoint and Set with P Values and Control Condition
+accuracy_with_pvalues_and_control <- ggplot(proportion_data, aes(x = Set, y = Proportion, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = Proportion - SE, ymax = Proportion + SE), 
+                position = position_dodge(0.7), width = 0.25) +
+  labs(title = "Total Accuracy by Timepoint and Set",
+       x = "Timepoint",
+       y = "Accuracy") +
+  theme_minimal() +
+  geom_text(aes(label = ifelse(Timepoint == "POST", paste0("p=", format(p_value, digits = 2)), "")), 
+            position = position_dodge(-0.25), vjust = -1.5, size = 3)
+
+
+# Plot Accuracy by Timepoint and Set with P Values without Control Condition
+proportion_data_without_control <- proportion_data %>% filter(Set != 'CONTROL')
+accuracy_without_control <- ggplot(proportion_data_without_control, aes(x = Set, y = Proportion, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = Proportion - SE, ymax = Proportion + SE), 
+                position = position_dodge(0.7), width = 0.25) +
+  labs(title = "Total Accuracy by Timepoint and Set",
+       x = "Timepoint",
+       y = "Accuracy") +
+  theme_minimal() +
+  geom_text(aes(label = ifelse(Timepoint == "POST", paste0("p=", format(p_value, digits = 2)), "")), 
+            position = position_dodge(-0.25), vjust = -1.5, size = 3)
+
+
+# Plot Total Accuracy by Timepoint and Set without P Values and Control Condition
+proportion_data_without_control <- proportion_data %>% filter(Set != 'CONTROL')
+accuracy_without_control_or_pvalues <- ggplot(proportion_data_without_control, aes(x = Set, y = Proportion, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = Proportion - SE, ymax = Proportion + SE), 
+                position = position_dodge(0.7), width = 0.25) +
+  labs(title = "Total Accuracy by Timepoint and Set",
+       x = "Timepoint",
+       y = "Accuracy") +
+  theme_minimal() 
+
+ggsave(file=paste0("word_accuracy_with_p_values_and_control_", Sys.Date(),".svg"), 
+       plot=accuracy_with_pvalues_and_control, width=10, height=8)
+ggsave(file=paste0("word_accuracy_with_p_values_without_control_", Sys.Date(), ".svg"), 
+       plot=accuracy_without_control, width=10, height=8)
+ggsave(file=paste0("word_accuracy_without_p_values_without_control_", Sys.Date(), ".svg"), 
+       plot=accuracy_without_control_or_pvalues, width=10, height=8)
+  
+```
+
+## Plot Target Word Accuracy Pre vs. Post
+
+```{r}
+
+p_values_target_words <- data.frame(
+  Set = c("MOR", "VRP"),
+  p_value = c(MORTargetWordsFisherTest$p.value, VRPTargetWordsFisherTest$p.value)
+)
+
+proportion_data_target_words <- summary %>%
+  group_by(Set, Timepoint) %>%
+  summarise(Proportion = mean(AccuracyTargetWords), 
+            SE = sd(AccuracyTargetWords) / sqrt(n())) %>%
+  ungroup() 
+
+# Merge p-values with proportion data
+proportion_data_target_words <- merge(proportion_data_target_words, p_values_target_words, by = "Set")
+proportion_data_target_words$Timepoint <- factor(proportion_data_target_words$Timepoint, levels = c("PRE", "POST"))
+
+# Plot Accuracy by Timepoint and Set with P Values and Control Condition
+target_word_accuracy_with_pvalues <- ggplot(proportion_data_target_words, aes(x = Set, y = Proportion, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = Proportion - SE, ymax = Proportion + SE), 
+                position = position_dodge(0.7), width = 0.25) +
+  labs(title = "Target Word Accuracy by Timepoint and Set",
+       x = "Timepoint",
+       y = "Accuracy") +
+  theme_minimal() +
+  geom_text(aes(label = ifelse(Timepoint == "POST", paste0("p=", format(p_value, digits = 2)), "")), 
+            position = position_dodge(0), vjust = -2.5, size = 3)
+
+
+# Plot Total Accuracy by Timepoint and Set without P Values
+target_word_accuracy_without_pvalues <- ggplot(proportion_data_target_words, aes(x = Set, y = Proportion, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = Proportion - SE, ymax = Proportion + SE), 
+                position = position_dodge(0.7), width = 0.25) +
+  labs(title = "Target Word Accuracy by Timepoint and Set",
+       x = "Timepoint",
+       y = "Accuracy") +
+  theme_minimal() 
+
+ggsave(file=paste0("target_word_accuracy_with_p_values_",Sys.Date(),".svg"), 
+       plot=target_word_accuracy_with_pvalues, width=10, height=8)
+ggsave(file=paste0("target_word_accuracy_without_p_values_",Sys.Date(),".svg"), 
+       plot=target_word_accuracy_without_pvalues, width=10, height=8)
+
+```
+
+
+## Save Contingency Tables and Fisher Stats
+
+```{r}
+# Output Fisher Test Results for All Words
+# Combine the results
+results <- list(
+  CONTROL = ControlFisherTest,
+  MOR = MORFisherTest,
+  VRP = VRPFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_results_all_words_",Sys.Date(),".txt"))
+
+
+# Output Fisher Test Results for Target Words
+# Combine the results
+results <- list(
+  MOR = MORTargetWordsFisherTest,
+  VRP = VRPTargetWordsFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_results_target_words_",Sys.Date(),".txt"))
+
+# Output Contingency Tables for All Words
+# Combine tables into a list
+tables <- list(
+  CONTROL = contingency_table_control,
+  MOR = contingency_table_MOR,
+  VRP = contingency_table_VRP
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(tables)) {
+    cat("\n", name, "\n")
+    print(tables[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("contingency_tables_all_words_",Sys.Date(),".txt"))
+
+
+# Output Contingency Tables for Target Words
+# Combine tables into a list
+tables <- list(
+  MOR = contingency_table_MOR_TargetWords,
+  VRP = contingency_table_VRP_TargetWords
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(tables)) {
+    cat("\n", name, "\n")
+    print(tables[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("contingency_tables_target_words_",Sys.Date(),".txt"))
+
+```
+
+
+## Compare Control to MOR and VRP at Baseline
+
+```{r}
+
+contingency_table_control_vs_MOR <- matrix(
+  c(controlAccurracyPre$Correct, MORAccurracyPre$Correct, 
+    controlAccurracyPre$Incorrect, MORAccurracyPre$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("CONTROL", "MOR"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+ControlVsMORFisherTest <-fisher.test(contingency_table_control_vs_MOR)
+
+contingency_table_control_vs_VRP <- matrix(
+  c(controlAccurracyPre$Correct, VRPAccurracyPre$Correct, 
+    controlAccurracyPre$Incorrect, VRPAccurracyPre$Incorrect), 
+  nrow = 2,
+  dimnames = list(Timepoint = c("CONTROL", "VRP"), 
+                  Accuracy = c("Correct", "Incorrect")))
+
+ControlVsVRPFisherTest <-fisher.test(contingency_table_control_vs_VRP)
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  ControlVsMOR = ControlVsMORFisherTest,
+  ControlVsVRP = ControlVsVRPFisherTest
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("fisher_tests_control_vs_treatment_paragraphs_",Sys.Date(),".txt"))
+
+
+BoschlooControlvsVRP <- boschloo(contingency_table_control_vs_VRP[1], contingency_table_control_vs_VRP[1] + contingency_table_control_vs_VRP[3], 
+         contingency_table_control_vs_VRP[2], contingency_table_control_vs_VRP[2] + contingency_table_control_vs_VRP[4])
+BoschlooControlvsMOR <- boschloo(contingency_table_control_vs_MOR[1], contingency_table_control_vs_MOR[1] + contingency_table_control_vs_MOR[3], 
+         contingency_table_control_vs_MOR[2], contingency_table_control_vs_MOR[2] + contingency_table_control_vs_MOR[4])
+
+# Output Fisher Test Results, Control vs. MOR/VRP
+# Combine the results
+results <- list(
+  ControlVsMOR = BoschlooControlvsMOR,
+  ControlVsVRP = BoschlooControlvsVRP
+)
+
+# Capture the output
+output <- capture.output({
+  for (name in names(results)) {
+    cat("\n", name, "\n")
+    print(results[[name]])
+  }
+})
+
+# Write to a text file
+writeLines(output, paste0("boschloo_control_vs_treatment_paragraphs_",Sys.Date(),".txt"))
+
+
+```
